@@ -18,6 +18,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (
                     "age".to_string(),
                     Schema {
+                        schema_type: Some(Type::Integer),
+                        ..Default::default()
+                    },
+                ),
+                (
+                    "election_percentage".to_string(),
+                    Schema {
                         schema_type: Some(Type::Number),
                         ..Default::default()
                     },

@@ -331,6 +331,7 @@ pub enum Type {
     Object,
     Array,
     String,
+    Integer,
     Number,
     Boolean,
 }
