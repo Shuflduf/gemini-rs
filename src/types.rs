@@ -207,7 +207,7 @@ pub enum FinishReason {
     ImageSafety,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HarmCategory {
     HarmCategoryUnspecified,
@@ -224,7 +224,7 @@ pub enum HarmCategory {
     HarmCategoryCivicIntegrity,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HarmBlockThreshold {
     BlockNone,
@@ -298,7 +298,7 @@ pub struct GenerationConfig {
     pub response_schema: Option<Schema>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SafetySettings {
     pub category: HarmCategory,
     pub threshold: HarmBlockThreshold,

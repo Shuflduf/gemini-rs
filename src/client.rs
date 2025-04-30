@@ -136,6 +136,10 @@ impl GenerateContent {
         self.body.generation_config = Some(config);
     }
 
+    pub fn safety_settings(&mut self, safety_settings: Vec<types::SafetySettings>) {
+        self.body.safety_settings = safety_settings;
+    }
+
     pub fn system_instruction(&mut self, instruction: &str) {
         self.body.system_instruction = Some(types::SystemInstructionContent {
             parts: vec![types::SystemInstructionPart {

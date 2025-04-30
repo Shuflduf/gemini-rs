@@ -9,6 +9,7 @@ pub struct Chat<T> {
     model: Box<str>,
     client: Client,
     system_instruction: Option<Box<str>>,
+    safety_settings: Vec<types::SafetySettings>,
     history: Vec<types::Content>,
     config: Option<types::GenerationConfig>,
     phantom: PhantomData<T>,
@@ -20,6 +21,7 @@ impl<T> Chat<T> {
             model: model.into(),
             client: client.clone(),
             system_instruction: None,
+            safety_settings: Vec::new(),
             history: Vec::new(),
             config: None,
             phantom: PhantomData,
@@ -36,6 +38,7 @@ impl<T> Chat<T> {
             model: self.model,
             client: self.client,
             system_instruction: self.system_instruction,
+            safety_settings: self.safety_settings,
             history: self.history,
             config: self.config,
             phantom: PhantomData,
@@ -52,6 +55,10 @@ impl<T> Chat<T> {
 
     pub fn history_mut(&mut self) -> &mut Vec<types::Content> {
         &mut self.history
+    }
+
+    pub fn safety_settings(&mut self, safety_settings: Vec<types::SafetySettings>) {
+        self.safety_settings = safety_settings;
     }
 
     pub fn system_instruction(mut self, instruction: &str) -> Self {
@@ -71,6 +78,7 @@ impl<T> Chat<T> {
         }
 
         generate_content.contents(self.history.clone());
+        generate_content.safety_settings(self.safety_settings.clone());
         generate_content.await
     }
 
