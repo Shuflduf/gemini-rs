@@ -8,7 +8,7 @@ use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
 
-use crate::{Chat, Error, Result, chat, types};
+use crate::{chat, types::{self, Tools}, Chat, Error, Result};
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
@@ -39,9 +39,9 @@ impl<T: Request> IntoFuture for Route<T> {
 
             if let Some(body) = self.kind.body() {
                 request = request.json(&body);
-            }
-
+            };
             let response = request.send().await?;
+            print!("response: {:#?}", response);
             match response.json::<types::ApiResponse<T::Model>>().await? {
                 types::ApiResponse::Ok(response) => Ok(response),
                 types::ApiResponse::Err(api_error) => Err(Error::Gemini(api_error.error)),
@@ -147,7 +147,32 @@ impl GenerateContent {
             }],
         });
     }
-
+    pub fn add_tool(&mut self, tool: types::FunctionDeclaration,most_response:bool) {
+        // Try to find a mutable reference to an existing Function tool
+        let s = self.body.tools.iter_mut().find_map(|t| {
+            if t.function_declarations.is_some() {
+                Some(t)
+            } else {
+                None
+            }
+        });
+        if let Some(f) = s {
+            if let Some(ref mut fd) = f.function_declarations {
+                fd.push(tool);
+            }
+        } else {
+            self.body.tools.push(
+                Tools {
+                    function_declarations: vec![tool].into(),
+                    google_search: None,
+                    code_execution: None,
+                }
+            );
+        }
+    }
+    pub fn tool_config(&mut self, conf: types::ToolConfig) {
+        self.body.tool_config = Some(conf);
+    }
     pub fn contents(&mut self, contents: Vec<types::Content>) {
         self.body.contents = contents;
     }

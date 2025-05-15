@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, default, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
@@ -79,6 +79,7 @@ pub struct Model {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<i32>,
 }
+
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -224,13 +225,17 @@ pub enum HarmCategory {
     HarmCategoryCivicIntegrity,
 }
 
+
+// https://ai.google.dev/api/generate-content?hl=en#safetysetting
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HarmBlockThreshold {
+    OFF,
     BlockNone,
     BlockLowAndAbove,
     BlockMedAndAbove,
-    BlockHighAndAbove,
+    //BlockHighAndAbove, // It seems like deprecated
+    HarmBlockThresholdUnspecified,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -244,16 +249,62 @@ pub enum HarmProbability {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Tools {
-    #[serde(rename = "functionDeclarations")]
-    pub function_declarations: Vec<FunctionDeclaration>,
+pub struct GoogleSearchTool{
+    
+    // when use this feature, 
+    // you can't use function_declarations by google's policy
+    // https://ai.google.dev/gemini-api/docs/grounding?hl=en&lang=rest
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CodeExecutionTool {
+    #[serde(rename="code_execution")]
+    pub code_execution: bool,
+}
+
+//https://ai.google.dev/gemini-api/docs/function-calling?hl=en&example=weather#multi-tool_use_combine_native_tools_with_function_calling
+#[derive(Debug, Serialize)]
+pub struct Tools {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "functionDeclarations")]
+    pub function_declarations: Option<Vec<FunctionDeclaration>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "googleSearch")]
+    pub google_search:Option<GoogleSearchTool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "codeExecution")]
+    pub code_execution:Option<CodeExecutionTool>,
+}
+
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
+    // https://ai.google.dev/api/caching?hl=en#FunctionDeclaration
     pub parameters: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<Schema>,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionParameters {
+    #[serde(rename = "type")]
+    sche_type: String,
+    #[serde(rename = "properties")]
+    pub properties:serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
+}
+
+impl Default for FunctionParameters {
+    fn default() -> Self {
+        Self {
+            sche_type: "OBJECT".to_string(),
+            properties: serde_json::json!({}),
+            required: None,
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -270,8 +321,9 @@ pub struct GenerateContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default, rename = "system_instruction")]
     pub system_instruction: Option<SystemInstructionContent>,
+    #[serde(default, rename = "toolConfig")]
+    pub tool_config: Option<ToolConfig>,
 }
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SystemInstructionContent {
     #[serde(default)]
@@ -296,8 +348,18 @@ pub struct GenerationConfig {
     pub stop_sequences: Option<Vec<String>>,
     pub response_mime_type: Option<String>,
     pub response_schema: Option<Schema>,
+    #[serde(rename="thinkingConfig",skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<ThinkingConfig>,
 }
 
+#[derive(Debug, Default,Serialize, Deserialize,Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingConfig {
+    #[serde(rename="thinkingBudget",skip_serializing_if = "Option::is_none")]
+    pub thinking_budget : Option<u16>, // 0~24576
+    #[serde(rename="includeThoughts",skip_serializing_if = "Option::is_none")]
+    pub include_thoughts: Option<bool>,
+}
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SafetySettings {
     pub category: HarmCategory,
@@ -310,6 +372,7 @@ pub struct Schema {
     #[serde(rename = "type")]
     pub schema_type: Option<Type>,
     pub format: Option<String>,
+    pub title: Option<String>,
     pub description: Option<String>,
     pub nullable: Option<bool>,
     #[serde(rename = "enum")]
@@ -323,6 +386,29 @@ pub struct Schema {
     #[serde(rename = "propertyOrdering")]
     pub property_ordering: Option<Vec<String>>,
     pub items: Option<Box<Schema>>,
+}
+
+//https://ai.google.dev/api/caching?hl=en#ToolConfig
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ToolConfig {
+    #[serde(rename = "functionCallingConfig")]
+    pub function_calling_config: Option<FunctionCallingConfig>
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionCallingConfig{
+    #[serde(rename = "mode")]
+    pub mode: Option<FunctionCallingMode>,
+    #[serde(rename = "allowedFunctionNames")]
+    pub allowed_function_names: Option<Vec<String>>,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum FunctionCallingMode {
+    Auto,
+    Any,
+    None,
+    Validated,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
