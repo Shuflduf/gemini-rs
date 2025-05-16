@@ -239,12 +239,12 @@ pub enum HarmCategory {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HarmBlockThreshold {
-    OFF,
-    BlockNone,
+    HarmBlockThresholdUnspecified,
     BlockLowAndAbove,
     BlockMedAndAbove,
-    //BlockHighAndAbove, // It seems like deprecated
-    HarmBlockThresholdUnspecified,
+    BlockOnlyHigh,//BlockHighAndAbove, // It seems like deprecated
+    BlockNone,
+    OFF,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
