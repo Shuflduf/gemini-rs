@@ -149,6 +149,11 @@ pub struct Part {
     pub file_data: Option<FileData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_metadata: Option<VideoMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executable_code: Option<ExecutableCode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<FunctionCall>,
+    
 }
 
 impl Part {
@@ -159,6 +164,8 @@ impl Part {
         }
     }
 }
+
+
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -248,19 +255,12 @@ pub enum HarmProbability {
     High,
 }
 
+// when use this feature, 
+// you can't use function_declarations by google's policy
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GoogleSearchTool{
-    
-    // when use this feature, 
-    // you can't use function_declarations by google's policy
-    // https://ai.google.dev/gemini-api/docs/grounding?hl=en&lang=rest
-}
-
+pub struct GoogleSearchTool{}
 #[derive(Debug, Deserialize, Serialize)]
-pub struct CodeExecutionTool {
-    #[serde(rename="code_execution")]
-    pub code_execution: bool,
-}
+pub struct CodeExecutionTool {}
 
 //https://ai.google.dev/gemini-api/docs/function-calling?hl=en&example=weather#multi-tool_use_combine_native_tools_with_function_calling
 #[derive(Debug, Serialize)]
@@ -409,6 +409,31 @@ pub enum FunctionCallingMode {
     Any,
     None,
     Validated,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ExecutableCode {
+    pub language: ProgrammingLanguage,
+    pub code: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProgrammingLanguage {
+    LanguageUnspecified,
+    Python,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FunctionCall {
+    pub id: Option<String>,
+    pub name:String,
+    pub args: serde_json::Value,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FunctionResponse{
+    pub id: Option<String>,
+    pub name:String,
+    pub args: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

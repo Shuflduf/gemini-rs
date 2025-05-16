@@ -41,7 +41,6 @@ impl<T: Request> IntoFuture for Route<T> {
                 request = request.json(&body);
             };
             let response = request.send().await?;
-            print!("response: {:#?}", response);
             match response.json::<types::ApiResponse<T::Model>>().await? {
                 types::ApiResponse::Ok(response) => Ok(response),
                 types::ApiResponse::Err(api_error) => Err(Error::Gemini(api_error.error)),
