@@ -145,7 +145,7 @@ impl GenerateContent {
             }],
         });
     }
-    pub fn add_tool(&mut self, tool: types::FunctionDeclaration,most_response:bool) {
+    pub fn add_tool(&mut self, tool: types::FunctionDeclaration) {
         // Try to find a mutable reference to an existing Function tool
         let s = self.body.tools.iter_mut().find_map(|t| {
             if t.function_declarations.is_some() {
