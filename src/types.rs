@@ -289,16 +289,6 @@ pub struct FunctionDeclaration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Schema>,
 }
-#[derive(Debug, Deserialize, Serialize,Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct FunctionParameters {
-    #[serde(rename = "type")]
-    sche_type: String,
-    #[serde(rename = "properties")]
-    pub properties:Option<BTreeMap<String, Schema>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub required: Option<Vec<String>>,
-}
 
 #[derive(Debug, Default, Serialize)]
 pub struct GenerateContent {

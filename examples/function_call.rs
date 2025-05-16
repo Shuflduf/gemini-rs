@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, default, env};
 
-use gemini_rs::types::{CodeExecutionTool, FunctionDeclaration, FunctionParameters, GoogleSearchTool, SafetySettings, Schema, ToolConfig, Tools, Type};
+use gemini_rs::types::{CodeExecutionTool, FunctionDeclaration, GoogleSearchTool, SafetySettings, Schema, ToolConfig, Tools, Type};
 use serde_json::json;
 
 
