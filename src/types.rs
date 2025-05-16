@@ -442,8 +442,9 @@ pub struct FunctionResponse{
     pub id: Option<String>,
     #[serde(rename = "name")]
     pub name:String,
-    #[serde(rename = "args")]
-    pub args: serde_json::Value,
+    #[serde(rename = "args",skip_serializing_if = "Option::is_none")]
+    //Optional. The function parameters and values in JSON object format.
+    pub args: Option<serde_json::Value>,
 }
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CodeExecutionResult {
