@@ -7,8 +7,7 @@ use std::{
 use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
-
-use crate::{chat, types::{self, Tools}, Chat, Error, Result};
+use crate::{Chat, Error, Result, chat, types};
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
@@ -161,7 +160,7 @@ impl GenerateContent {
             }
         } else {
             self.body.tools.push(
-                Tools {
+                types::Tools {
                     function_declarations: vec![tool].into(),
                     google_search: None,
                     code_execution: None,
