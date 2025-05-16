@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, default, hash::Hash};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Map;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -153,6 +154,8 @@ pub struct Part {
     pub executable_code: Option<ExecutableCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_call: Option<FunctionCall>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_execution_result: Option<CodeExecutionResult>,
     
 }
 
@@ -282,29 +285,20 @@ pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
     // https://ai.google.dev/api/caching?hl=en#FunctionDeclaration
-    pub parameters: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Schema>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Schema>,
 }
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize,Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionParameters {
     #[serde(rename = "type")]
     sche_type: String,
     #[serde(rename = "properties")]
-    pub properties:serde_json::Value,
+    pub properties:Option<BTreeMap<String, Schema>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
-}
-
-impl Default for FunctionParameters {
-    fn default() -> Self {
-        Self {
-            sche_type: "OBJECT".to_string(),
-            properties: serde_json::json!({}),
-            required: None,
-        }
-    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -391,15 +385,15 @@ pub struct Schema {
 //https://ai.google.dev/api/caching?hl=en#ToolConfig
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ToolConfig {
-    #[serde(rename = "functionCallingConfig")]
+    #[serde(rename = "functionCallingConfig",skip_serializing_if = "Option::is_none")]
     pub function_calling_config: Option<FunctionCallingConfig>
 }
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallingConfig{
-    #[serde(rename = "mode")]
+    #[serde(rename = "mode",skip_serializing_if = "Option::is_none")]
     pub mode: Option<FunctionCallingMode>,
-    #[serde(rename = "allowedFunctionNames")]
+    #[serde(rename = "allowedFunctionNames",skip_serializing_if = "Option::is_none")]
     pub allowed_function_names: Option<Vec<String>>,
 }
 #[derive(Debug, Deserialize, Serialize)]
@@ -412,7 +406,9 @@ pub enum FunctionCallingMode {
 }
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExecutableCode {
+    #[serde(rename = "language")]
     pub language: ProgrammingLanguage,
+    #[serde(rename = "code")]
     pub code: String,
 }
 
@@ -424,16 +420,38 @@ pub enum ProgrammingLanguage {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Outcome {
+    OutcomeUnspecified,
+    OutcomeOk,
+    OutcomeError,
+    OutcomeDeadlineExceeded,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FunctionCall {
+    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(rename = "name")]
     pub name:String,
+    #[serde(rename = "args")]
     pub args: serde_json::Value,
 }
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FunctionResponse{
+    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(rename = "name")]
     pub name:String,
+    #[serde(rename = "args")]
     pub args: serde_json::Value,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CodeExecutionResult {
+    #[serde(rename = "outcome")]
+    pub outcome:Outcome,
+    #[serde(rename = "output",skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

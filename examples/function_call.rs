@@ -1,4 +1,4 @@
-use std::{default, env};
+use std::{collections::BTreeMap, default, env};
 
 use gemini_rs::types::{CodeExecutionTool, FunctionDeclaration, FunctionParameters, GoogleSearchTool, SafetySettings, Schema, ToolConfig, Tools, Type};
 use serde_json::json;
@@ -25,26 +25,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         }
     );
-    let mut fun_param = FunctionParameters::default();
-    fun_param.properties = json!(
-        {
-            "time": {
-                "type": "STRING",
-                "description": "time to set alarm",
-            },
-            
-        }
+    let mut properties = BTreeMap::new();
+    properties.insert(
+        "time".to_string(),
+        Schema {
+            schema_type: Some(Type::String),
+            format: None,
+            title: None,
+            description: Some("The time to set the alarm for.".to_string()),
+            nullable: None,
+            enum_values: None,
+            max_items: None,
+            min_items: None,
+            properties: None,
+            required: None,
+            property_ordering: None,
+            items: None,
+        },
     );
+
+    let parameters = Schema {
+        schema_type: Some(Type::Object),
+        properties: Some(properties),
+        format: None,
+        title: None,
+        description: None,
+        nullable: None,
+        enum_values: None,
+        max_items: None,
+        min_items: None,
+        required: Some(vec!["time".to_string()]),
+        property_ordering: None,
+        items: None,
+    };
+
+    let function_declaration = FunctionDeclaration {
+        name: "set_alarm".to_string(),
+        description: "Set an alarm for a specific time.".to_string(),
+        parameters: Some(parameters),
+        response: None,
+    };
+
 
     content.body.tools = vec![
         Tools{ 
-            function_declarations: None, 
+            //Set alarm 7:00 AM
+            function_declarations: Some(vec![function_declaration]),
             google_search: None,
             //Search : What is the time in New York
             //google_search: Some(GoogleSearchTool{}),
 
             //What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50. 
-            code_execution: Some(CodeExecutionTool{}), 
+            code_execution: None,
+            //Some(CodeExecutionTool{}), 
         }
     ];
     content.system_instruction("You are a helpful assistant. You can set alarms for the user.");
