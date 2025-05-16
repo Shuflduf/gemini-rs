@@ -145,28 +145,8 @@ impl GenerateContent {
             }],
         });
     }
-    pub fn add_tool(&mut self, tool: types::FunctionDeclaration) {
-        // Try to find a mutable reference to an existing Function tool
-        let s = self.body.tools.iter_mut().find_map(|t| {
-            if t.function_declarations.is_some() {
-                Some(t)
-            } else {
-                None
-            }
-        });
-        if let Some(f) = s {
-            if let Some(ref mut fd) = f.function_declarations {
-                fd.push(tool);
-            }
-        } else {
-            self.body.tools.push(
-                types::Tools {
-                    function_declarations: vec![tool].into(),
-                    google_search: None,
-                    code_execution: None,
-                }
-            );
-        }
+    pub fn tools(&mut self, tool: Vec<types::Tools>) {
+        self.body.tools = tool;
     }
     pub fn tool_config(&mut self, conf: types::ToolConfig) {
         self.body.tool_config = Some(conf);
