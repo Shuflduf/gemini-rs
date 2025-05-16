@@ -7,7 +7,6 @@ use std::{
 use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
-
 use crate::{Chat, Error, Result, chat, types};
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
@@ -39,8 +38,7 @@ impl<T: Request> IntoFuture for Route<T> {
 
             if let Some(body) = self.kind.body() {
                 request = request.json(&body);
-            }
-
+            };
             let response = request.send().await?;
             match response.json::<types::ApiResponse<T::Model>>().await? {
                 types::ApiResponse::Ok(response) => Ok(response),
@@ -147,7 +145,12 @@ impl GenerateContent {
             }],
         });
     }
-
+    pub fn tools(&mut self, tool: Vec<types::Tools>) {
+        self.body.tools = tool;
+    }
+    pub fn tool_config(&mut self, conf: types::ToolConfig) {
+        self.body.tool_config = Some(conf);
+    }
     pub fn contents(&mut self, contents: Vec<types::Content>) {
         self.body.contents = contents;
     }
