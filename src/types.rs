@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -130,6 +131,12 @@ pub struct SafetyRating {
     pub blocked: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FunctionCall {
+    pub name: String,
+    pub args: Value,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Content {
     pub role: Role,
@@ -148,6 +155,8 @@ pub struct Part {
     pub file_data: Option<FileData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_metadata: Option<VideoMetadata>,
+    #[serde(rename = "functionCall", skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<FunctionCall>,
 }
 
 impl Part {
@@ -253,7 +262,7 @@ pub struct Tools {
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
-    pub parameters: serde_json::Value,
+    pub parameters: Value,
 }
 
 #[derive(Debug, Default, Serialize)]
