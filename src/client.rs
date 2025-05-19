@@ -40,7 +40,10 @@ impl<T: Request> IntoFuture for Route<T> {
                 request = request.json(&body);
             };
             let response = request.send().await?;
-            match response.json::<types::ApiResponse<T::Model>>().await? {
+
+            let raw_json = response.text().await?;
+
+            match serde_json::from_str::<types::ApiResponse<T::Model>>(&raw_json)? {
                 types::ApiResponse::Ok(response) => Ok(response),
                 types::ApiResponse::Err(api_error) => Err(Error::Gemini(api_error.error)),
             }
@@ -145,9 +148,6 @@ impl GenerateContent {
             }],
         });
     }
-    pub fn tools(&mut self, tool: Vec<types::Tools>) {
-        self.body.tools = tool;
-    }
     pub fn tool_config(&mut self, conf: types::ToolConfig) {
         self.body.tool_config = Some(conf);
     }
@@ -160,6 +160,9 @@ impl GenerateContent {
             role: types::Role::User,
             parts: vec![types::Part::text(message)],
         });
+    }
+    pub fn tools(&mut self, tools: Vec<types::Tools>) {
+        self.body.tools = tools;
     }
 }
 

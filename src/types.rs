@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -131,6 +132,14 @@ pub struct SafetyRating {
     pub blocked: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FunctionCall {
+    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub name: String,
+    pub args: Value,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Content {
     pub role: Role,
@@ -152,10 +161,9 @@ pub struct Part {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub executable_code: Option<ExecutableCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub function_call: Option<FunctionCall>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub code_execution_result: Option<CodeExecutionResult>,
-    
+    #[serde(rename = "functionCall", skip_serializing_if = "Option::is_none")]
+    pub function_call: Option<FunctionCall>,
 }
 
 impl Part {
@@ -283,11 +291,9 @@ pub struct Tools {
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
-    // https://ai.google.dev/api/caching?hl=en#FunctionDeclaration
+    pub parameters: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Schema>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<Schema>,
+    pub response: Option<Value>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -415,16 +421,6 @@ pub enum Outcome {
     OutcomeOk,
     OutcomeError,
     OutcomeDeadlineExceeded,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct FunctionCall {
-    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[serde(rename = "name")]
-    pub name:String,
-    #[serde(rename = "args")]
-    pub args: serde_json::Value,
 }
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FunctionResponse{

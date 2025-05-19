@@ -44,25 +44,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    let parameters = Schema {
-        schema_type: Some(Type::Object),
-        properties: Some(properties),
-        format: None,
-        title: None,
-        description: None,
-        nullable: None,
-        enum_values: None,
-        max_items: None,
-        min_items: None,
-        required: Some(vec!["time".to_string()]),
-        property_ordering: None,
-        items: None,
-    };
+    let parameters =json!({
+            "type": "object",
+            "properties": {
+                "theme": {
+                    "type": "string",
+                    "description": "The theme to set",
+                    "enum": ["light", "dark"]
+                }
+            },
+            "required": ["theme"]
+        });
 
     let function_declaration = FunctionDeclaration {
         name: "set_alarm".to_string(),
         description: "Set an alarm for a specific time.".to_string(),
-        parameters: Some(parameters),
+        parameters: parameters,
         response: None,
     };
 
