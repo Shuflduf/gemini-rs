@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -81,6 +81,7 @@ pub struct Model {
     pub top_k: Option<i32>,
 }
 
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Response {
@@ -133,6 +134,8 @@ pub struct SafetyRating {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FunctionCall {
+    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     pub name: String,
     pub args: Value,
 }
@@ -155,6 +158,10 @@ pub struct Part {
     pub file_data: Option<FileData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video_metadata: Option<VideoMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executable_code: Option<ExecutableCode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_execution_result: Option<CodeExecutionResult>,
     #[serde(rename = "functionCall", skip_serializing_if = "Option::is_none")]
     pub function_call: Option<FunctionCall>,
 }
@@ -167,6 +174,8 @@ impl Part {
         }
     }
 }
+
+
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -233,13 +242,17 @@ pub enum HarmCategory {
     HarmCategoryCivicIntegrity,
 }
 
+
+// https://ai.google.dev/api/generate-content?hl=en#safetysetting
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HarmBlockThreshold {
-    BlockNone,
+    HarmBlockThresholdUnspecified,
     BlockLowAndAbove,
     BlockMedAndAbove,
-    BlockHighAndAbove,
+    BlockOnlyHigh,//BlockHighAndAbove, // It seems like deprecated
+    BlockNone,
+    OFF,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -252,17 +265,35 @@ pub enum HarmProbability {
     High,
 }
 
+// when use this feature, 
+// you can't use function_declarations by google's policy
 #[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleSearchTool{}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CodeExecutionTool {}
+
+//https://ai.google.dev/gemini-api/docs/function-calling?hl=en&example=weather#multi-tool_use_combine_native_tools_with_function_calling
+#[derive(Debug, Serialize)]
 pub struct Tools {
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "functionDeclarations")]
-    pub function_declarations: Vec<FunctionDeclaration>,
+    pub function_declarations: Option<Vec<FunctionDeclaration>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "googleSearch")]
+    pub google_search:Option<GoogleSearchTool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "codeExecution")]
+    pub code_execution:Option<CodeExecutionTool>,
 }
+
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
     pub parameters: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<Value>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -279,8 +310,9 @@ pub struct GenerateContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default, rename = "system_instruction")]
     pub system_instruction: Option<SystemInstructionContent>,
+    #[serde(default, rename = "toolConfig")]
+    pub tool_config: Option<ToolConfig>,
 }
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SystemInstructionContent {
     #[serde(default)]
@@ -305,8 +337,18 @@ pub struct GenerationConfig {
     pub stop_sequences: Option<Vec<String>>,
     pub response_mime_type: Option<String>,
     pub response_schema: Option<Schema>,
+    #[serde(rename="thinkingConfig",skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<ThinkingConfig>,
 }
 
+#[derive(Debug, Default,Serialize, Deserialize,Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingConfig {
+    #[serde(rename="thinkingBudget",skip_serializing_if = "Option::is_none")]
+    pub thinking_budget : Option<u16>, // 0~24576
+    #[serde(rename="includeThoughts",skip_serializing_if = "Option::is_none")]
+    pub include_thoughts: Option<bool>,
+}
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SafetySettings {
     pub category: HarmCategory,
@@ -319,6 +361,7 @@ pub struct Schema {
     #[serde(rename = "type")]
     pub schema_type: Option<Type>,
     pub format: Option<String>,
+    pub title: Option<String>,
     pub description: Option<String>,
     pub nullable: Option<bool>,
     #[serde(rename = "enum")]
@@ -332,6 +375,69 @@ pub struct Schema {
     #[serde(rename = "propertyOrdering")]
     pub property_ordering: Option<Vec<String>>,
     pub items: Option<Box<Schema>>,
+}
+
+//https://ai.google.dev/api/caching?hl=en#ToolConfig
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ToolConfig {
+    #[serde(rename = "functionCallingConfig",skip_serializing_if = "Option::is_none")]
+    pub function_calling_config: Option<FunctionCallingConfig>
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionCallingConfig{
+    #[serde(rename = "mode",skip_serializing_if = "Option::is_none")]
+    pub mode: Option<FunctionCallingMode>,
+    #[serde(rename = "allowedFunctionNames",skip_serializing_if = "Option::is_none")]
+    pub allowed_function_names: Option<Vec<String>>,
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum FunctionCallingMode {
+    Auto,
+    Any,
+    None,
+    Validated,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ExecutableCode {
+    #[serde(rename = "language")]
+    pub language: ProgrammingLanguage,
+    #[serde(rename = "code")]
+    pub code: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProgrammingLanguage {
+    LanguageUnspecified,
+    Python,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Outcome {
+    OutcomeUnspecified,
+    OutcomeOk,
+    OutcomeError,
+    OutcomeDeadlineExceeded,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FunctionResponse{
+    #[serde(rename = "id",skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(rename = "name")]
+    pub name:String,
+    #[serde(rename = "args",skip_serializing_if = "Option::is_none")]
+    //Optional. The function parameters and values in JSON object format.
+    pub args: Option<serde_json::Value>,
+}
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CodeExecutionResult {
+    #[serde(rename = "outcome")]
+    pub outcome:Outcome,
+    #[serde(rename = "output",skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

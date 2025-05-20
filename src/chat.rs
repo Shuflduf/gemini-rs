@@ -90,6 +90,7 @@ impl<T> Chat<T> {
 
         self.generate_content().await
     }
+    
 }
 
 impl Chat<Json> {

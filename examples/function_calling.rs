@@ -19,11 +19,14 @@ async fn main() {
             },
             "required": ["theme"]
         }),
+        response: None,
     }];
 
     // 2. Wrap in Tools
     let tools = vec![Tools {
-        function_declarations: function_decs,
+        function_declarations: Some(function_decs),
+        google_search: None,
+        code_execution: None,
     }];
 
     // 3. Get the client and builder
