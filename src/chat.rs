@@ -1,3 +1,5 @@
+//! Simplest way to use gemini-rs, and covers 80% of use cases
+
 use std::marker::PhantomData;
 
 use crate::{
@@ -90,7 +92,6 @@ impl<T> Chat<T> {
 
         self.generate_content().await
     }
-    
 }
 
 impl Chat<Json> {

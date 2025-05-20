@@ -1,13 +1,15 @@
+//! Covers the 20% of use cases that [Chat] doesn't
+
 use std::{
     fmt::Write as _,
     ops::{Deref, DerefMut},
     sync::{Arc, LazyLock},
 };
 
+use crate::{Chat, Error, Result, chat, types};
 use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
-use crate::{Chat, Error, Result, chat, types};
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
