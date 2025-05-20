@@ -1,5 +1,3 @@
-//! Covers the 20% of use cases that [Chat] doesn't
-
 use std::{
     fmt::Write as _,
     ops::{Deref, DerefMut},
@@ -10,6 +8,7 @@ use crate::{Chat, Error, Result, chat, types};
 use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
+use serde::Serialize;
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
@@ -39,11 +38,16 @@ impl<T: Request> IntoFuture for Route<T> {
                 .request(T::METHOD, format!("{BASE_URI}/{self}"));
 
             if let Some(body) = self.kind.body() {
+                // Debug print the request body
+                if let Ok(body_json) = serde_json::to_string_pretty(&body) {
+                    println!("Request body: {body_json}");
+                }
                 request = request.json(&body);
             };
-            let response = request.send().await?;
 
+            let response = request.send().await?;
             let raw_json = response.text().await?;
+            println!("Response: {raw_json}");
 
             match serde_json::from_str::<types::ApiResponse<T::Model>>(&raw_json)? {
                 types::ApiResponse::Ok(response) => Ok(response),
@@ -76,6 +80,7 @@ impl<T: Request> std::fmt::Display for Route<T> {
     }
 }
 
+/// Covers the 20% of use cases that [Chat] doesn't
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<ClientInner>,

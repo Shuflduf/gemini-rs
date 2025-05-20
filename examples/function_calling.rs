@@ -19,7 +19,6 @@ async fn main() {
             },
             "required": ["theme"]
         }),
-        response: None,
     }];
 
     // 2. Wrap in Tools

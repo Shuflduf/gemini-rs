@@ -44,7 +44,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "set_alarm".to_string(),
         description: "Set an alarm for a specific time.".to_string(),
         parameters,
-        response: None,
     };
 
     content.body.tools = vec![Tools {

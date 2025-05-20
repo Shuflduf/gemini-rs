@@ -57,22 +57,11 @@ pub use client::Client;
 pub use error::Error;
 
 /// Creates a new Gemini client instance using the default configuration.
-///
-/// The client is configured using the `GOOGLE_API_KEY` environment variable.
-/// This function returns a singleton instance that is shared across your application.
 pub fn client() -> Client {
     Client::instance()
 }
 
 /// Creates a new chat session with the specified Gemini model.
-///
-/// # Arguments
-///
-/// * `model` - The name of the Gemini model to use (e.g., "gemini-pro")
-///
-/// # Returns
-///
-/// Returns a new [`Chat`] instance configured for text-based interactions.
 pub fn chat(model: &str) -> Chat<chat::Text> {
     client().chat(model)
 }

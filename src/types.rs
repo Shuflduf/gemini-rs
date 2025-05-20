@@ -395,10 +395,8 @@ pub struct Tools {
     #[serde(rename = "functionDeclarations")]
     pub function_declarations: Option<Vec<FunctionDeclaration>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default, rename = "googleSearch")]
     pub google_search: Option<GoogleSearchTool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default, rename = "codeExecution")]
     pub code_execution: Option<CodeExecutionTool>,
 }
 
@@ -427,7 +425,7 @@ pub struct GenerateContent {
     pub contents: Vec<Content>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Tools>,
-    #[serde(default, rename = "toolConfig")]
+    #[serde(default, rename = "toolConfig", skip_serializing_if = "Option::is_none")]
     pub tool_config: Option<ToolConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default, rename = "safetySettings")]

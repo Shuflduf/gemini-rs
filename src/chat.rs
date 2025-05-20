@@ -1,5 +1,3 @@
-//! Simplest way to use gemini-rs, and covers 80% of use cases
-
 use std::marker::PhantomData;
 
 use crate::{
@@ -7,6 +5,7 @@ use crate::{
     types::{self, Response},
 };
 
+/// Simplest way to use gemini-rs, and covers 80% of use cases
 pub struct Chat<T> {
     model: Box<str>,
     client: Client,
