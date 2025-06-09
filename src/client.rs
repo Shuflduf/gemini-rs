@@ -62,17 +62,31 @@ impl<T: Request> IntoFuture for Route<T> {
     }
 }
 
-impl<T> Deref for Route<T> {
-    type Target = T;
+impl Deref for Route<GenerateContent> {
+    type Target = GenerateContent;
 
     fn deref(&self) -> &Self::Target {
         &self.kind
     }
 }
 
-impl<T> DerefMut for Route<T> {
+impl DerefMut for Route<GenerateContent> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.kind
+    }
+}
+
+impl Deref for Route<StreamGenerateContent> {
+    type Target = GenerateContent;
+
+    fn deref(&self) -> &Self::Target {
+        &self.kind.0
+    }
+}
+
+impl DerefMut for Route<StreamGenerateContent> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.kind.0
     }
 }
 
@@ -307,20 +321,6 @@ impl Request for GenerateContent {
 
 pub struct StreamGenerateContent(GenerateContent);
 
-impl Deref for StreamGenerateContent {
-    type Target = GenerateContent;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for StreamGenerateContent {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl Request for StreamGenerateContent {
     type Model = types::Response;
     type Body = types::GenerateContent;
@@ -330,12 +330,12 @@ impl Request for StreamGenerateContent {
     fn format_uri(&self, fmt: &mut Formatter<'_, '_>) -> std::fmt::Result {
         fmt.write_str("v1beta/")?;
         fmt.write_str("models/")?;
-        fmt.write_str(&self.model)?;
+        fmt.write_str(&self.0.model)?;
         fmt.write_str(":streamGenerateContent")
     }
 
     fn body(&self) -> Option<Self::Body> {
-        Some(self.body.clone())
+        Some(self.0.body.clone())
     }
 }
 
@@ -343,7 +343,7 @@ impl std::fmt::Display for StreamGenerateContent {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut fmt = Formatter::new(fmt);
         self.format_uri(&mut fmt)?;
-        fmt.write_query_param("key", &self.model)
+        fmt.write_query_param("key", &self.0.model)
     }
 }
 
