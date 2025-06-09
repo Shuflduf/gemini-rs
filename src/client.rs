@@ -315,6 +315,12 @@ impl Deref for StreamGenerateContent {
     }
 }
 
+impl DerefMut for StreamGenerateContent {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl Request for StreamGenerateContent {
     type Model = types::Response;
     type Body = types::GenerateContent;
