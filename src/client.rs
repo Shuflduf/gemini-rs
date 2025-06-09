@@ -1,14 +1,18 @@
 use std::{
     fmt::Write as _,
     ops::{Deref, DerefMut},
+    pin::Pin,
     sync::{Arc, LazyLock},
+    task::Poll,
 };
 
-use crate::{Chat, Error, Result, chat, types};
-use futures::FutureExt as _;
+use bytes::Bytes;
+use futures::{FutureExt as _, Stream, TryStreamExt};
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
-use serde::Serialize;
+use serde::ser::Error as _;
+
+use crate::{Chat, Error, Result, chat, types};
 
 const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
@@ -80,6 +84,109 @@ impl<T: Request> std::fmt::Display for Route<T> {
     }
 }
 
+pub struct RouteStream<T> {
+    phantom: std::marker::PhantomData<T>,
+    stream: Pin<Box<dyn Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send>>,
+    buffer: Vec<u8>,
+}
+
+impl Route<StreamGenerateContent> {
+    pub async fn stream(self) -> std::result::Result<RouteStream<StreamGenerateContent>, String> {
+        let url = format!("{BASE_URI}/{}", self);
+        let body = self.kind.body().clone();
+        let mut request = self
+            .client
+            .reqwest
+            .request(StreamGenerateContent::METHOD, url);
+
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+
+        let response = request.send().await.map_err(|e| e.to_string())?;
+        let stream = response.bytes_stream();
+
+        // .(|response| response.bytes_stream().map_err(Error::from).boxed());
+
+        Ok(RouteStream {
+            phantom: std::marker::PhantomData,
+            stream: Box::pin(stream),
+            buffer: Vec::new(),
+        })
+    }
+}
+
+impl Stream for RouteStream<StreamGenerateContent> {
+    type Item = Result<Vec<types::Response>>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        println!("Polling for next item in RouteStream");
+        loop {
+            let is_end = !self.buffer.is_empty() && !self.buffer.ends_with(b"\n");
+            println!("Buffer length: {}", self.buffer.len());
+            if is_end {
+                // We have a full line, so drain it from the buffer.
+
+                // Try to parse it. If parsing fails, it's a valid item (an Err).
+                println!(
+                    "Parsing buffer: {:?}",
+                    String::from_utf8_lossy(&self.buffer)
+                );
+                let response = match serde_json::from_slice(&self.buffer) {
+                    Ok(resp) => Ok(resp),
+                    Err(e) => Err(Error::from(e)),
+                };
+
+                self.buffer.clear(); // Clear the buffer for the next message.
+
+                // Return the complete message.
+                return Poll::Ready(Some(response));
+            }
+
+            // If we don't have a complete message, we need more data.
+            // Poll the underlying stream. This is where the Waker is passed along.
+            match self.stream.try_poll_next_unpin(cx) {
+                // The underlying stream gave us more data.
+                Poll::Ready(Some(Ok(bytes))) => {
+                    self.buffer.extend_from_slice(&bytes);
+                    // We've added the new data to the buffer. We don't return yet.
+                    // We `continue` the loop to re-check the buffer for a complete message.
+                    continue;
+                }
+
+                // The underlying stream returned Pending. It has now registered the waker.
+                // We have no complete messages in our buffer, so we have no choice but
+                // to also return Pending and wait to be awoken.
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+
+                // The underlying stream produced an error. Propagate it immediately.
+                Poll::Ready(Some(Err(err))) => {
+                    return Poll::Ready(Some(Err(Error::Http(err))));
+                }
+
+                // The underlying stream is finished.
+                Poll::Ready(None) => {
+                    if self.buffer.is_empty() {
+                        // The stream and the buffer are empty. We are truly done.
+                        return Poll::Ready(None);
+                    } else {
+                        // The stream ended, but we have a partial message.
+                        return Poll::Ready(Some(Err(Error::Serde(serde_json::Error::custom(
+                            "stream ended with partial data: ".to_string()
+                                + &String::from_utf8_lossy(&self.buffer),
+                        )))));
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Covers the 20% of use cases that [Chat] doesn't
 #[derive(Clone)]
 pub struct Client {
@@ -119,6 +226,13 @@ impl Client {
 
     pub fn generate_content(&self, model: &str) -> Route<GenerateContent> {
         Route::new(self, GenerateContent::new(model.into()))
+    }
+
+    pub fn stream_generate_content(&self, model: &str) -> Route<StreamGenerateContent> {
+        Route::new(
+            self,
+            StreamGenerateContent(GenerateContent::new(model.into())),
+        )
     }
 
     pub fn instance() -> Client {
@@ -186,8 +300,44 @@ impl Request for GenerateContent {
         fmt.write_str(":generateContent")
     }
 
-    fn body(self) -> Option<Self::Body> {
-        Some(self.body)
+    fn body(&self) -> Option<Self::Body> {
+        Some(self.body.clone())
+    }
+}
+
+pub struct StreamGenerateContent(GenerateContent);
+
+impl Deref for StreamGenerateContent {
+    type Target = GenerateContent;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Request for StreamGenerateContent {
+    type Model = types::Response;
+    type Body = types::GenerateContent;
+
+    const METHOD: Method = Method::POST;
+
+    fn format_uri(&self, fmt: &mut Formatter<'_, '_>) -> std::fmt::Result {
+        fmt.write_str("v1beta/")?;
+        fmt.write_str("models/")?;
+        fmt.write_str(&self.model)?;
+        fmt.write_str(":streamGenerateContent")
+    }
+
+    fn body(&self) -> Option<Self::Body> {
+        Some(self.body.clone())
+    }
+}
+
+impl std::fmt::Display for StreamGenerateContent {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut fmt = Formatter::new(fmt);
+        self.format_uri(&mut fmt)?;
+        fmt.write_query_param("key", &self.model)
     }
 }
 
@@ -299,7 +449,7 @@ pub trait Request: Send + Sized + 'static {
 
     fn format_uri(&self, fmt: &mut Formatter<'_, '_>) -> std::fmt::Result;
 
-    fn body(self) -> Option<Self::Body> {
+    fn body(&self) -> Option<Self::Body> {
         None
     }
 }
