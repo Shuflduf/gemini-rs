@@ -54,6 +54,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub use chat::Chat;
 pub use client::Client;
+pub use client::RouteStream;
 pub use error::Error;
 
 /// Creates a new Gemini client instance using the default configuration.
