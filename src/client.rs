@@ -7,7 +7,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures::{FutureExt as _, Stream, TryStreamExt};
+use futures::{FutureExt as _, Stream};
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
 use serde::ser::Error as _;
@@ -42,16 +42,11 @@ impl<T: Request> IntoFuture for Route<T> {
                 .request(T::METHOD, format!("{BASE_URI}/{self}"));
 
             if let Some(body) = self.kind.body() {
-                // Debug print the request body
-                if let Ok(body_json) = serde_json::to_string_pretty(&body) {
-                    println!("Request body: {body_json}");
-                }
                 request = request.json(&body);
             };
 
             let response = request.send().await?;
             let raw_json = response.text().await?;
-            println!("Response: {raw_json}");
 
             match serde_json::from_str::<types::ApiResponse<T::Model>>(&raw_json)? {
                 types::ApiResponse::Ok(response) => Ok(response),
@@ -90,20 +85,6 @@ impl DerefMut for Route<StreamGenerateContent> {
     }
 }
 
-impl<T: Request> std::fmt::Display for Route<T> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut fmt = Formatter::new(fmt);
-        self.kind.format_uri(&mut fmt)?;
-        fmt.write_query_param("key", &self.client.key.expose_secret())
-    }
-}
-
-pub struct RouteStream<T> {
-    phantom: std::marker::PhantomData<T>,
-    stream: Pin<Box<dyn Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send>>,
-    buffer: Vec<u8>,
-}
-
 impl Route<StreamGenerateContent> {
     pub async fn stream(self) -> std::result::Result<RouteStream<StreamGenerateContent>, String> {
         let url = format!("{BASE_URI}/{}", self);
@@ -120,81 +101,161 @@ impl Route<StreamGenerateContent> {
         let response = request.send().await.map_err(|e| e.to_string())?;
         let stream = response.bytes_stream();
 
-        // .(|response| response.bytes_stream().map_err(Error::from).boxed());
-
         Ok(RouteStream {
             phantom: std::marker::PhantomData,
             stream: Box::pin(stream),
             buffer: Vec::new(),
+            pos: 0,
+            state: ParseState::CannotAdvance,
         })
     }
 }
 
+impl<T: Request> std::fmt::Display for Route<T> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut fmt = Formatter::new(fmt);
+        self.kind.format_uri(&mut fmt)?;
+        fmt.write_query_param("key", &self.client.key.expose_secret())
+    }
+}
+
+pub struct RouteStream<T> {
+    phantom: std::marker::PhantomData<T>,
+    stream: Pin<Box<dyn Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send>>,
+    buffer: Vec<u8>,
+    pos: usize, // A cursor into the buffer.
+    state: ParseState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParseState {
+    CannotAdvance,
+    ReadingChars,
+    ReadingValue,
+    Finished,
+}
+
+#[derive(Debug)]
+enum ParseOutcome {
+    Ok(Option<types::Response>),
+    Err(serde_json::Error),
+    Eof,
+}
+
+impl RouteStream<StreamGenerateContent> {
+    fn next_char_pos(&self) -> Option<usize> {
+        self.buffer[self.pos..]
+            .iter()
+            .position(|&b| !b.is_ascii_whitespace())
+            .map(|p| self.pos + p)
+    }
+
+    fn advance_next_char(&mut self) -> Option<u8> {
+        self.pos = self.next_char_pos().unwrap_or(self.buffer.len());
+        self.buffer.get(self.pos).copied()
+    }
+
+    fn current_char(&self) -> Option<u8> {
+        self.buffer.get(self.pos).copied()
+    }
+
+    fn is_bridge_char(&self) -> bool {
+        matches!(self.current_char(), Some(b'[') | Some(b','))
+    }
+
+    fn parse_chunk(&mut self) -> ParseOutcome {
+        let mut de = serde_json::Deserializer::from_slice(&self.buffer[self.pos..])
+            .into_iter::<types::Response>();
+        match de.next() {
+            Some(Ok(value)) => {
+                self.pos += de.byte_offset();
+                ParseOutcome::Ok(Some(value))
+            }
+            Some(Err(e)) if e.is_eof() => ParseOutcome::Eof,
+            Some(Err(e)) => ParseOutcome::Err(e),
+            None => ParseOutcome::Ok(None), // No more objects to read.
+        }
+    }
+
+    fn try_parse_next(&mut self) -> Option<ParseOutcome> {
+        match self.state {
+            ParseState::CannotAdvance => None, // nothing to read
+            ParseState::ReadingChars => {
+                self.advance_next_char();
+                if self.is_bridge_char() {
+                    self.pos += 1; // Move past this '[' or ','
+                    self.state = ParseState::ReadingValue;
+                    None
+                } else if let Some(b']') = self.current_char() {
+                    // If we hit a ']', we can finish reading.
+                    self.state = ParseState::Finished;
+                    Some(ParseOutcome::Ok(None))
+                } else {
+                    None
+                }
+            }
+            ParseState::ReadingValue => {
+                self.advance_next_char();
+                // Deserialize one object from our current position.
+                let outcome = self.parse_chunk();
+                match &outcome {
+                    ParseOutcome::Ok(Some(_)) => {
+                        self.state = ParseState::ReadingChars;
+                    }
+                    ParseOutcome::Ok(None) | ParseOutcome::Err(_) => {
+                        self.state = ParseState::Finished;
+                    }
+                    ParseOutcome::Eof => {}
+                };
+                Some(outcome)
+            }
+            ParseState::Finished => None,
+        }
+    }
+}
+
 impl Stream for RouteStream<StreamGenerateContent> {
-    type Item = Result<Vec<types::Response>>;
+    type Item = Result<types::Response>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        println!("Polling for next item in RouteStream");
         loop {
-            let is_end = !self.buffer.is_empty() && !self.buffer.ends_with(b"\n");
-            println!("Buffer length: {}", self.buffer.len());
-            if is_end {
-                // We have a full line, so drain it from the buffer.
-
-                // Try to parse it. If parsing fails, it's a valid item (an Err).
-                println!(
-                    "Parsing buffer: {:?}",
-                    String::from_utf8_lossy(&self.buffer)
-                );
-                let response = match serde_json::from_slice(&self.buffer) {
-                    Ok(resp) => Ok(resp),
-                    Err(e) => Err(Error::from(e)),
-                };
-
-                self.buffer.clear(); // Clear the buffer for the next message.
-
-                // Return the complete message.
-                return Poll::Ready(Some(response));
+            // Housekeeping: drain the buffer if we've processed a lot.
+            if self.pos > 2048 {
+                let this_pos = self.pos;
+                self.buffer.drain(..this_pos);
+                self.pos = 0;
             }
 
-            // If we don't have a complete message, we need more data.
-            // Poll the underlying stream. This is where the Waker is passed along.
-            match self.stream.try_poll_next_unpin(cx) {
-                // The underlying stream gave us more data.
+            if let Some(ParseOutcome::Ok(Some(response))) = self.try_parse_next() {
+                return Poll::Ready(Some(Ok(response)));
+            }
+
+            // If we fell through, we need more data. Poll the underlying stream.
+            match self.stream.as_mut().poll_next(cx) {
                 Poll::Ready(Some(Ok(bytes))) => {
-                    self.buffer.extend_from_slice(&bytes);
-                    // We've added the new data to the buffer. We don't return yet.
-                    // We `continue` the loop to re-check the buffer for a complete message.
-                    continue;
-                }
-
-                // The underlying stream returned Pending. It has now registered the waker.
-                // We have no complete messages in our buffer, so we have no choice but
-                // to also return Pending and wait to be awoken.
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
-
-                // The underlying stream produced an error. Propagate it immediately.
-                Poll::Ready(Some(Err(err))) => {
-                    return Poll::Ready(Some(Err(Error::Http(err))));
-                }
-
-                // The underlying stream is finished.
-                Poll::Ready(None) => {
-                    if self.buffer.is_empty() {
-                        // The stream and the buffer are empty. We are truly done.
-                        return Poll::Ready(None);
-                    } else {
-                        // The stream ended, but we have a partial message.
-                        return Poll::Ready(Some(Err(Error::Serde(serde_json::Error::custom(
-                            "stream ended with partial data: ".to_string()
-                                + &String::from_utf8_lossy(&self.buffer),
-                        )))));
+                    if self.buffer.is_empty() && !bytes.is_empty() {
+                        self.state = ParseState::ReadingChars;
                     }
+                    self.buffer.extend_from_slice(&bytes);
+                    continue; // Loop again to process new data.
+                }
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Some(Err(e))) => {
+                    self.state = ParseState::Finished;
+                    return Poll::Ready(Some(Err(Error::Http(e))));
+                }
+                Poll::Ready(None) => {
+                    // Underlying stream ended. Check if we're in a clean state.
+                    if self.state != ParseState::Finished && self.pos < self.buffer.len() {
+                        let msg =
+                            format!("stream ended with unparsed data in state {:?}", self.state);
+                        return Poll::Ready(Some(Err(serde_json::Error::custom(msg).into())));
+                    }
+                    self.state = ParseState::Finished;
+                    return Poll::Ready(None);
                 }
             }
         }
