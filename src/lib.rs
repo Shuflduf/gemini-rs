@@ -48,6 +48,7 @@
 mod chat;
 mod client;
 mod error;
+mod stream;
 pub mod types;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -55,6 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub use chat::Chat;
 pub use client::Client;
 pub use error::Error;
+pub use stream::{RouteStream, StreamGenerateContent};
 
 /// Creates a new Gemini client instance using the default configuration.
 pub fn client() -> Client {

@@ -4,17 +4,17 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use crate::{Chat, Error, Result, chat, types};
 use futures::FutureExt as _;
 use reqwest::Method;
 use secrecy::{ExposeSecret as _, SecretString};
-use serde::Serialize;
 
-const BASE_URI: &str = "https://generativelanguage.googleapis.com";
+use crate::{Chat, Error, Result, StreamGenerateContent, chat, types};
+
+pub(crate) const BASE_URI: &str = "https://generativelanguage.googleapis.com";
 
 pub struct Route<T> {
-    client: Client,
-    kind: T,
+    pub(crate) client: Client,
+    pub(crate) kind: T,
 }
 
 impl<T> Route<T> {
@@ -38,16 +38,11 @@ impl<T: Request> IntoFuture for Route<T> {
                 .request(T::METHOD, format!("{BASE_URI}/{self}"));
 
             if let Some(body) = self.kind.body() {
-                // Debug print the request body
-                if let Ok(body_json) = serde_json::to_string_pretty(&body) {
-                    println!("Request body: {body_json}");
-                }
                 request = request.json(&body);
             };
 
             let response = request.send().await?;
             let raw_json = response.text().await?;
-            println!("Response: {raw_json}");
 
             match serde_json::from_str::<types::ApiResponse<T::Model>>(&raw_json)? {
                 types::ApiResponse::Ok(response) => Ok(response),
@@ -58,15 +53,15 @@ impl<T: Request> IntoFuture for Route<T> {
     }
 }
 
-impl<T> Deref for Route<T> {
-    type Target = T;
+impl Deref for Route<GenerateContent> {
+    type Target = GenerateContent;
 
     fn deref(&self) -> &Self::Target {
         &self.kind
     }
 }
 
-impl<T> DerefMut for Route<T> {
+impl DerefMut for Route<GenerateContent> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.kind
     }
@@ -83,7 +78,7 @@ impl<T: Request> std::fmt::Display for Route<T> {
 /// Covers the 20% of use cases that [Chat] doesn't
 #[derive(Clone)]
 pub struct Client {
-    inner: Arc<ClientInner>,
+    pub(crate) inner: Arc<ClientInner>,
 }
 
 impl Deref for Client {
@@ -121,6 +116,10 @@ impl Client {
         Route::new(self, GenerateContent::new(model.into()))
     }
 
+    pub fn stream_generate_content(&self, model: &str) -> Route<StreamGenerateContent> {
+        Route::new(self, StreamGenerateContent::new(model))
+    }
+
     pub fn instance() -> Client {
         static STATIC_INSTANCE: LazyLock<Client> = LazyLock::new(Client::default);
         STATIC_INSTANCE.clone()
@@ -128,7 +127,7 @@ impl Client {
 }
 
 pub struct GenerateContent {
-    model: Box<str>,
+    pub(crate) model: Box<str>,
     pub body: types::GenerateContent,
 }
 
@@ -186,8 +185,8 @@ impl Request for GenerateContent {
         fmt.write_str(":generateContent")
     }
 
-    fn body(self) -> Option<Self::Body> {
-        Some(self.body)
+    fn body(&self) -> Option<Self::Body> {
+        Some(self.body.clone())
     }
 }
 
@@ -241,14 +240,18 @@ impl DerefMut for Formatter<'_, '_> {
 }
 
 impl<'me, 'buffer> Formatter<'me, 'buffer> {
-    fn new(formatter: &'me mut std::fmt::Formatter<'buffer>) -> Self {
+    pub(crate) fn new(formatter: &'me mut std::fmt::Formatter<'buffer>) -> Self {
         Self {
             formatter,
             is_first: true,
         }
     }
 
-    fn write_query_param(&mut self, key: &str, value: &impl std::fmt::Display) -> std::fmt::Result {
+    pub(crate) fn write_query_param(
+        &mut self,
+        key: &str,
+        value: &impl std::fmt::Display,
+    ) -> std::fmt::Result {
         if self.is_first {
             self.formatter.write_char('?')?;
             self.is_first = false;
@@ -275,7 +278,7 @@ impl<'me, 'buffer> Formatter<'me, 'buffer> {
 }
 
 pub struct ClientInner {
-    reqwest: reqwest::Client,
+    pub(crate) reqwest: reqwest::Client,
     key: SecretString,
 }
 
@@ -299,7 +302,7 @@ pub trait Request: Send + Sized + 'static {
 
     fn format_uri(&self, fmt: &mut Formatter<'_, '_>) -> std::fmt::Result;
 
-    fn body(self) -> Option<Self::Body> {
+    fn body(&self) -> Option<Self::Body> {
         None
     }
 }
