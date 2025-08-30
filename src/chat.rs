@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     Client, Result,
-    types::{self, Response, Part},
+    types::{self, Response},
 };
 
 /// Simplest way to use gemini-rs, and covers 80% of use cases
@@ -91,7 +91,7 @@ impl<T> Chat<T> {
 
         self.generate_content().await
     }
-    pub async fn send_parted_messages(&mut self, parts: Vec<Part>) -> Result<Response> {
+    pub async fn send_parted_messages(&mut self, parts: Vec<types::Part>) -> Result<Response> {
         self.history.push(types::Content {
             role: types::Role::User,
             parts,
