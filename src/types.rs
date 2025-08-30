@@ -217,6 +217,15 @@ impl Part {
             ..Default::default()
         }
     }
+    pub fn inline_data(mime_type: &str, data: &str) -> Self {
+        Self {
+            inline_data: Some(InlineData {
+                mime_type: mime_type.into(),
+                data: data.into(),
+            }),
+            ..Default::default()
+        }
+    }
 }
 
 /// Metadata for a video File
@@ -254,6 +263,7 @@ pub struct FileData {
 ///
 /// [API Reference](https://ai.google.dev/api/caching#Blob)
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct InlineData {
     pub mime_type: String,
     pub data: String,

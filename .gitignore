@@ -22,3 +22,6 @@ Cargo.lock
 # Only here because this is a library, and I use main.rs for testing purposes.
 src/main.rs
 Testing/
+
+examples/images/response.png
+examples/images/response.json
