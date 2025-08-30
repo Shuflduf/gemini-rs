@@ -4,7 +4,7 @@ use base64::Engine;
 #[cfg(feature = "use-base64")]
 use base64::{engine::general_purpose};
 // function calling example
-use gemini_rs::types::{FunctionDeclaration, InlineData, Part, Tools};
+use gemini_rs::types::{InlineData, Part};
 use serde::{Deserialize, Serialize};
 /// Proposal : Image enum for processing in-line image data
 /// [API Reference](https://ai.google.dev/gemini-api/docs/image-understanding#supported-formats)
@@ -25,7 +25,8 @@ pub enum InlineDataMimeTypeEnum {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini_rs::Client::instance();
 
-    let mut chat_list = vec![Part::text("Remake Tree well")];
+    let mut chat_list = vec![];
+    chat_list.push(Part::text("Remake Tree well"));
     #[cfg(feature = "use-base64")]{
         chat_list.push(Part::inline_data(
         "image/jpeg",
@@ -39,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .chat("gemini-2.5-flash-image-preview")
     .send_parted_messages(chat_list).await?;
     let image = response.candidates[0].content.parts.iter().filter(|a| {
-        if let Part { inline_data: Some(InlineData { mime_type, data }), .. } = a {
+        if let Part { inline_data: Some(InlineData { mime_type:_, data:_ }), .. } = a {
             true
         } else {
             false
