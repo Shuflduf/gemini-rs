@@ -91,6 +91,14 @@ impl<T> Chat<T> {
 
         self.generate_content().await
     }
+    pub async fn send_parted_messages(&mut self, parts: Vec<types::Part>) -> Result<Response> {
+        self.history.push(types::Content {
+            role: types::Role::User,
+            parts,
+        });
+
+        self.generate_content().await
+    }
 }
 
 impl Chat<Json> {
